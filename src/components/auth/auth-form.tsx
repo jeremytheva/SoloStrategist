@@ -74,15 +74,17 @@ export function AuthForm({ mode }: AuthFormProps) {
       onboardingComplete: false,
     };
     
-    setDoc(userDocRef, userData, { merge: true }).catch(err => {
-        const permissionError = new FirestorePermissionError({
-            path: userDocRef.path,
-            operation: 'create',
-            requestResourceData: userData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        // We don't re-throw here to avoid unhandled promise rejection in this context
-    });
+    try {
+      await setDoc(userDocRef, userData, { merge: true });
+    } catch (err) {
+      const permissionError = new FirestorePermissionError({
+        path: userDocRef.path,
+        operation: 'create',
+        requestResourceData: userData,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      throw new Error('We could not save your profile. Please try again.');
+    }
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {

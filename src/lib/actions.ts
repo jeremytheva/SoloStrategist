@@ -4,7 +4,8 @@ import { getAICoachAdvice } from '@/ai/flows/get-ai-coach-advice';
 import { runFinancialAudit } from '@/ai/flows/run-financial-audit';
 import { generateInitialTechStackRecommendations } from '@/ai/flows/generate-initial-tech-stack-recommendations';
 import { revalidatePath } from 'next/cache';
-import { initializeFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { initializeServerFirebase } from '@/firebase/server';
+import { ServerFirestorePermissionError } from '@/firebase/server-permission-error';
 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -53,32 +54,34 @@ export async function deployWorkflowAction() {
   return { success: true, message: 'Workflow deployment initiated successfully!' };
 }
 
-export async function addTaskAction(task: { title: string; description?: string; status: 'todo' | 'inprogress' | 'done' }, userId: string) {
-    const { firestore } = initializeFirebase();
-    if (!userId) {
-        return { success: false, error: 'You must be logged in to add a task.' };
-    }
-    
-    const tasksCollectionRef = collection(firestore, 'tasks');
-    const taskData = {
-        ...task,
-        userId: userId, // Add userId to the task document
-        createdAt: serverTimestamp(),
-    };
+export async function addTaskAction(
+  task: { title: string; description?: string; status: 'todo' | 'inprogress' | 'done' },
+  userId: string,
+) {
+  if (!userId) {
+    return { success: false, error: 'You must be logged in to add a task.' };
+  }
 
-    try {
-        await addDoc(tasksCollectionRef, taskData);
-        revalidatePath('/tasks');
-        return { success: true };
-    } catch (error: any) {
-        // This will now primarily catch errors emitted by our handler
-        // The error is generic here because we cannot easily import the FirestorePermissionError on the server
-        const permissionError = new FirestorePermissionError({
-          path: tasksCollectionRef.path,
-          operation: 'create',
-          requestResourceData: taskData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        return { success: false, error: 'Failed to add task due to a permission error.' };
-    }
+  const { firestore } = initializeServerFirebase();
+  const tasksCollectionRef = collection(firestore, 'tasks');
+  const taskData = {
+    ...task,
+    userId,
+    createdAt: serverTimestamp(),
+  };
+
+  try {
+    await addDoc(tasksCollectionRef, taskData);
+    revalidatePath('/tasks');
+    return { success: true };
+  } catch (error) {
+    const permissionError = new ServerFirestorePermissionError({
+      path: tasksCollectionRef.path,
+      operation: 'create',
+      requestResourceData: taskData,
+    });
+    console.error(permissionError);
+    console.error('Underlying error when creating task document:', error);
+    return { success: false, error: 'Failed to add task due to a permission error.' };
+  }
 }

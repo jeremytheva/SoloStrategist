@@ -50,47 +50,68 @@ export function DashboardClient() {
   const loading = metricsLoading || profileLoading;
 
   const handleAiAction = async (action: 'coach' | 'audit' | 'tech' | 'workflow') => {
+    if (action === 'coach') {
+      if (!profile?.businessName || !metrics) {
+        toast({
+          title: 'Missing data',
+          description: 'Add your business profile and metrics before requesting AI coaching.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    if (action === 'tech' && !profile?.businessName) {
+      toast({
+        title: 'Business details needed',
+        description: 'Provide your business name to receive tech stack recommendations.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsAiRunning(action);
     setAiResult(null);
 
-    let result;
-    if (action === 'coach') {
-        if (!profile?.businessName || !metrics) return;
+    try {
+      if (action === 'workflow') {
+        const workflowResult = await deployWorkflowAction();
+        toast({
+          title: workflowResult.success ? 'Success' : 'Error',
+          description: workflowResult.message,
+          variant: workflowResult.success ? 'default' : 'destructive',
+        });
+        return;
+      }
+
+      let result;
+      if (action === 'coach') {
         setModalTitle('Your AI Business Coach');
         setModalDescription('Personalized advice to grow your business.');
-        result = await getCoachAdviceAction(profile.businessName, metrics, 'Launched a new ad campaign.');
-    } else if (action === 'audit') {
+        result = await getCoachAdviceAction(profile!.businessName!, metrics!, 'Launched a new ad campaign.');
+      } else if (action === 'audit') {
         setModalTitle('Financial Audit Results');
         setModalDescription('Discover savings and forecast future growth.');
         result = await runFinancialAuditAction();
-    } else if (action === 'tech') {
-        if (!profile?.businessName) return;
+      } else {
         setModalTitle('Tech Stack Recommendation');
         setModalDescription('The best tools to power your business.');
-        result = await getTechStackAction(profile.businessName);
-    } else if (action === 'workflow') {
-        const workflowResult = await deployWorkflowAction();
-        toast({
-            title: workflowResult.success ? 'Success' : 'Error',
-            description: workflowResult.message,
-            variant: workflowResult.success ? 'default' : 'destructive',
-        });
-        setIsAiRunning(null);
-        return;
-    }
-    
-    if (result && result.success) {
-      setAiResult(result.data);
-      setIsModalOpen(true);
-    } else {
-      toast({
-        title: 'Analysis Failed',
-        description: result?.error || 'An unexpected error occurred.',
-        variant: 'destructive',
-      });
-    }
+        result = await getTechStackAction(profile!.businessName!);
+      }
 
-    setIsAiRunning(null);
+      if (result && result.success) {
+        setAiResult(result.data);
+        setIsModalOpen(true);
+      } else {
+        toast({
+          title: 'Analysis Failed',
+          description: result?.error || 'An unexpected error occurred.',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsAiRunning(null);
+    }
   };
 
     const renderAiResult = () => {
