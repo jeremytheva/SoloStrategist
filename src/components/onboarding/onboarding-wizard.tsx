@@ -6,7 +6,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useFirestore, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
 
 import { Button } from '@/components/ui/button';
@@ -80,6 +80,7 @@ export function OnboardingWizard() {
     const userProfileUpdate = {
         ...finalData,
         onboardingComplete: true,
+        userId: user.uid,
     };
 
     const initialMetrics = {
@@ -89,10 +90,10 @@ export function OnboardingWizard() {
         conversionRate: 3.2,
     };
 
-    const updateUserPromise = updateDoc(userDocRef, userProfileUpdate).catch(error => {
+    const updateUserPromise = setDoc(userDocRef, userProfileUpdate, { merge: true }).catch(error => {
       const permissionError = new FirestorePermissionError({
         path: userDocRef.path,
-        operation: 'update',
+        operation: 'write',
         requestResourceData: userProfileUpdate,
       });
       errorEmitter.emit('permission-error', permissionError);
